@@ -1,65 +1,53 @@
-/**
- * TanStack Query hooks for issue data, including filtering (status,
- * priority, search) which is encoded directly into the query key so
- * each distinct filter combination is cached separately.
- */
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { api } from '../services/api';
+import type { Issue, IssueStatus, IssuePriority } from '../types';
 
-import { api } from "@/lib/api/client";
-import type { CreateIssueInput, IssueFilters, UpdateIssueInput } from "@/types";
-
-export const issueKeys = {
-  list: (projectId: number, filters: IssueFilters) =>
-    ["projects", projectId, "issues", filters] as const,
-  detail: (id: number) => ["issues", id] as const,
-};
-
-export function useIssues(projectId: number, filters: IssueFilters) {
+export function useIssues(filters?: { status?: IssueStatus; priority?: IssuePriority; search?: string }) {
   return useQuery({
-    queryKey: issueKeys.list(projectId, filters),
-    queryFn: () => api.listIssues(projectId, filters),
-    enabled: Number.isFinite(projectId),
+    queryKey: ['issues', filters],
+    queryFn: () => api.getIssues(filters),
   });
 }
 
-export function useIssue(id: number) {
+export function useProjectIssues(
+  projectId: number,
+  filters?: { status?: IssueStatus; priority?: IssuePriority; search?: string }
+) {
   return useQuery({
-    queryKey: issueKeys.detail(id),
-    queryFn: () => api.getIssue(id),
-    enabled: Number.isFinite(id),
-    retry: false,
+    queryKey: ['project-issues', projectId, filters],
+    queryFn: () => api.getProjectIssues(projectId, filters),
+    enabled: !!projectId,
   });
 }
 
-export function useCreateIssue(projectId: number) {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (input: CreateIssueInput) => api.createIssue(projectId, input),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["projects", projectId, "issues"] });
-      queryClient.invalidateQueries({ queryKey: ["projects"] });
-    },
+export function useIssue(issueId: number) {
+  return useQuery({
+    queryKey: ['issues', issueId],
+    queryFn: () => api.getIssue(issueId),
+    enabled: !!issueId,
   });
 }
 
-export function useUpdateIssue(issueId: number, projectId: number) {
-  const queryClient = useQueryClient();
+export function useCreateIssue() {
+  const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: UpdateIssueInput) => api.updateIssue(issueId, input),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: issueKeys.detail(issueId) });
-      queryClient.invalidateQueries({ queryKey: ["projects", projectId, "issues"] });
-    },
+    mutationFn: (data: Partial<Issue>) => api.createIssue(data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['issues'] }),
   });
 }
 
-export function useDeleteIssue(projectId: number) {
-  const queryClient = useQueryClient();
+export function useUpdateIssue() {
+  const qc = useQueryClient();
   return useMutation({
-    mutationFn: (issueId: number) => api.deleteIssue(issueId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["projects", projectId, "issues"] });
-      queryClient.invalidateQueries({ queryKey: ["projects"] });
-    },
+    mutationFn: ({ id, data }: { id: number; data: Partial<Issue> }) => api.updateIssue(id, data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['issues'] }),
+  });
+}
+
+export function useDeleteIssue() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api.deleteIssue(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['issues'] }),
   });
 }

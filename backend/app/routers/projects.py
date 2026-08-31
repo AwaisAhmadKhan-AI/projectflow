@@ -1,35 +1,51 @@
-"""
-Project routes.
-
-Routers stay thin: parse/validate via Pydantic (mostly automatic via
-type hints), call a service method, translate the result/exception into
-an HTTP response. No SQLAlchemy import appears in this file — that is
-the point of the layering (Section 4.1).
-"""
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
-from app.core.database import get_db
-from app.schemas.project import ProjectCreate, ProjectRead, ProjectSummary
+from app.database import get_db
+from app.schemas.project import ProjectCreate, ProjectRead
+from app.schemas.issue import IssueRead
+from app.repositories.project_repository import ProjectRepository
+from app.repositories.issue_repository import IssueRepository
 from app.services.project_service import ProjectService
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
 
-@router.get("", response_model=list[ProjectSummary])
-def list_projects(db: Session = Depends(get_db)) -> list[ProjectSummary]:
-    return ProjectService(db).list_projects()
+def get_service(db: Session = Depends(get_db)):
+    repository = ProjectRepository(db)
+    return ProjectService(repository)
 
 
-@router.post("", response_model=ProjectRead, status_code=status.HTTP_201_CREATED)
-def create_project(payload: ProjectCreate, db: Session = Depends(get_db)) -> ProjectRead:
-    project = ProjectService(db).create_project(payload)
-    return ProjectRead.model_validate(project)
+@router.get("/", response_model=list[ProjectRead])
+def list_projects(service: ProjectService = Depends(get_service)):
+    return service.get_all_projects()
+
+
+@router.post("/", response_model=ProjectRead, status_code=201)
+def create_project(project: ProjectCreate, service: ProjectService = Depends(get_service)):
+    return service.create_project(project.model_dump())
 
 
 @router.get("/{project_id}", response_model=ProjectRead)
-def get_project(project_id: int, db: Session = Depends(get_db)) -> ProjectRead:
-    project = ProjectService(db).get_project(project_id)
-    if project is None:
+def get_project(project_id: int, service: ProjectService = Depends(get_service)):
+    project = service.get_project(project_id)
+    if not project:
         raise HTTPException(status_code=404, detail="Project not found")
-    return ProjectRead.model_validate(project)
+    return project
+
+
+@router.get("/{project_id}/issues", response_model=list[IssueRead])
+def get_project_issues(
+    project_id: int,
+    status: str | None = Query(None),
+    priority: str | None = Query(None),
+    search: str | None = Query(None),
+    db: Session = Depends(get_db),
+):
+    issue_repo = IssueRepository(db)
+    filters = {
+        "status": status,
+        "priority": priority,
+        "search": search,
+    }
+    return issue_repo.get_by_project(project_id, filters)

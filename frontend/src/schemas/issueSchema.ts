@@ -1,23 +1,12 @@
-/**
- * Zod schema paired with React Hook Form for the Create/Edit Issue
- * forms. This is where "form values/errors" state lives (see the
- * assessment's state-ownership table, Section 6.3) — React Hook Form
- * owns the values and validation-derived error messages; Zod defines
- * what "valid" means.
- */
-import { z } from "zod";
+import { z } from 'zod';
 
-export const issueFormSchema = z.object({
-  title: z
-    .string()
-    .trim()
-    .min(1, "Title is required")
-    .max(300, "Title must be 300 characters or fewer"),
-  description: z.string().trim().max(10000).optional().or(z.literal("")),
-  status: z.enum(["backlog", "in_progress", "blocked", "done"]),
-  priority: z.enum(["low", "medium", "high"]),
-  assignee: z.string().trim().max(150).optional().or(z.literal("")),
-  due_date: z.string().optional().or(z.literal("")),
+export const issueSchema = z.object({
+  title: z.string().trim().min(3, 'Title must be at least 3 characters').max(200, 'Title must be less than 200 characters'),
+  description: z.string().trim().min(10, 'Add enough detail (at least 10 characters)').max(1000, 'Description too long'),
+  status: z.enum(['backlog', 'in_progress', 'blocked', 'done']),
+  priority: z.enum(['low', 'medium', 'high']),
+  assignee: z.string().trim().min(2, 'Enter assignee name').max(100),
+  dueDate: z.string().min(1, 'Choose a due date'),
 });
 
-export type IssueFormValues = z.infer<typeof issueFormSchema>;
+export type IssueFormValues = z.infer<typeof issueSchema>;

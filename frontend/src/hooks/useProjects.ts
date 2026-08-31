@@ -1,43 +1,23 @@
-/**
- * TanStack Query hooks for project data.
- *
- * Server data lives here, in Query's cache — not in Redux. Section 6.3
- * of the assessment is explicit that server/API data belongs in
- * TanStack Query rather than duplicated Redux state, since Query
- * already gives us caching, loading/error states and invalidation.
- */
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { api } from '../services/api';
 
-import { api } from "@/lib/api/client";
-import type { CreateProjectInput } from "@/types";
-
-export const projectKeys = {
-  all: ["projects"] as const,
-  detail: (id: number) => ["projects", id] as const,
-};
 
 export function useProjects() {
-  return useQuery({
-    queryKey: projectKeys.all,
-    queryFn: () => api.listProjects(),
-  });
+  return useQuery({ queryKey: ['projects'], queryFn: api.getProjects });
 }
 
-export function useProject(id: number) {
+export function useProject(projectId: number) {
   return useQuery({
-    queryKey: projectKeys.detail(id),
-    queryFn: () => api.getProject(id),
-    enabled: Number.isFinite(id),
-    retry: false,
+    queryKey: ['projects', projectId],
+    queryFn: () => api.getProject(projectId),
+    enabled: !!projectId,
   });
 }
 
 export function useCreateProject() {
-  const queryClient = useQueryClient();
+  const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: CreateProjectInput) => api.createProject(input),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: projectKeys.all });
-    },
+    mutationFn: (data: { name: string; description?: string }) => api.createProject(data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['projects'] }),
   });
 }
